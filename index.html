@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDoS Simulation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .stats {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .log {
+            background: #000;
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .targets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .target-btn {
+            padding: 10px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .target-btn:hover {
+            background: #138496;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ DDoS Simulation Test</h1>
+        
+        <div class="warning">
+            <strong>⚠️ PERINGATAN:</strong> 
+            <ul>
+                <li>Hanya untuk testing dan edukasi</li>
+                <li>Jangan gunakan terhadap website tanpa izin</li>
+                <li>GitHub Pages punya batasan CORS</li>
+                <li>Test hanya bekerja untuk website yang mengizinkan CORS</li>
+            </ul>
+        </div>
+        
+        <div class="form-group">
+            <label for="targetUrl">Target URL:</label>
+            <input type="text" id="targetUrl" value="https://httpbin.org/get" placeholder="https://example.com">
+            
+            <div class="targets">
+                <button class="target-btn" onclick="setTarget('https://httpbin.org/get')">httpbin.org (GET)</button>
+                <button class="target-btn" onclick="setTarget('https://httpbin.org/post')">httpbin.org (POST)</button>
+                <button class="target-btn" onclick="setTarget('https://jsonplaceholder.typicode.com/posts')">JSONPlaceholder</button>
+                <button class="target-btn" onclick="setTarget('https://api.github.com')">GitHub API</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="requests">Jumlah Request:</label>
+            <input type="number" id="requests" value="50" min="1" max="1000">
+        </div>
+
+        <div class="form-group">
+            <label for="concurrent">Request Concurrent:</label>
+            <input type="number" id="concurrent" value="5" min="1" max="20">
+        </div>
+
+        <div class="form-group">
+            <label for="method">HTTP Method:</label>
+            <select id="method">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+            </select>
+        </div>
+
+        <button id="startBtn" onclick="startTest()">Mulai Simulation Test</button>
+        <button id="stopBtn" onclick="stopTest()" disabled>Stop Test</button>
+
+        <div class="stats">
+            <h3>📊 Simulation Statistics</h3>
+            <div id="stats">Menunggu test dimulai...</div>
+        </div>
+
+        <div class="log">
+            <div id="log">Log akan muncul di sini...</div>
+        </div>
+
+        <div style="margin-top: 20px; font-size: 12px; color: #666;">
+            <p><strong>Catatan:</strong> Karena batasan GitHub Pages dan CORS, test hanya bekerja untuk website yang mengizinkan cross-origin requests.</p>
+        </div>
+    </div>
+
+    <script>
+        class DDoSSimulator {
+            constructor() {
+                this.isTesting = false;
+                this.stats = {
+                    totalRequests: 0,
+                    successfulRequests: 0,
+                    failedRequests: 0,
+                    startTime: null,
+                    endTime: null
+                };
+                this.activeRequests = 0;
+                this.maxConcurrent = 5;
+            }
+
+            log(message) {
+                const logElement = document.getElementById('log');
+                const timestamp = new Date().toLocaleTimeString();
+                logElement.innerHTML += `[${timestamp}] ${message}\n`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+
+            updateStats() {
+                const statsElement = document.getElementById('stats');
+                const elapsed = this.stats.startTime ? 
+                    (new Date() - this.stats.startTime) / 1000 : 0;
+                
+                statsElement.innerHTML = `
+                    Total Requests: ${this.stats.totalRequests}<br>
+                    Successful: ${this.stats.successfulRequests}<br>
+                    Failed: ${this.stats.failedRequests}<br>
+                    Active Requests: ${this.activeRequests}<br>
+                    Elapsed Time: ${elapsed.toFixed(2)} seconds<br>
+                    Requests/sec: ${elapsed > 0 ? (this.stats.totalRequests / elapsed).toFixed(2) : 0}
+                `;
+            }
+
+            async makeRequest(url, method) {
+                // Untuk GitHub Pages, kita handle CORS errors
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    
+                    const options = {
+                        method: method,
+                        signal: controller.signal,
+                        mode: 'cors',
+                        headers: {
+                            'User-Agent': 'DDoS-Test-Tool/1.0',
+                            'Content-Type': 'application/json'
+                        }
+                    };
+
+                    // Untuk POST/PUT/DELETE, tambahkan body
+                    if (method !== 'GET') {
+                        options.body = JSON.stringify({
+                            test: true,
+                            timestamp: new Date().toISOString(),
+                            message: 'DDoS test request'
+                        });
+                    }
+
+                    const response = await fetch(url, options);
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        return { success: true, status: response.status };
+                    } else {
+                        return { success: false, error: `HTTP ${response.status}` };
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        return { success: false, error: 'Timeout' };
+                    } else if (error.name === 'TypeError') {
+                        return { success: false, error: 'CORS Blocked' };
+                    } else {
+                        return { success: false, error: error.message };
+                    }
+                }
+            }
+
+            async startTest() {
+                const targetUrl = document.getElementById('targetUrl').value;
+                const totalRequests = parseInt(document.getElementById('requests').value);
+                this.maxConcurrent = parseInt(document.getElementById('concurrent').value);
+                const method = document.getElementById('method').value;
+
+                if (!targetUrl) {
+                    alert('Masukkan target URL!');
+                    return;
+                }
+
+                if (!targetUrl.startsWith('http')) {
+                    alert('URL harus dimulai dengan http:// atau https://');
+                    return;
+                }
+
+                this.isTesting = true;
+                this.stats = {
+                    totalRequests: 0,
+                    successfulRequests: 0,
+                    failedRequests: 0,
+                    startTime: new Date()
+                };
+
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+
+                this.log(`🚀 Memulai simulation test ke: ${targetUrl}`);
+                this.log(`📊 Target: ${totalRequests} requests, ${this.maxConcurrent} concurrent`);
+
+                const requestPromises = [];
+                
+                for (let i = 0; i < totalRequests && this.isTesting; i++) {
+                    // Tunggu jika sudah mencapai batas concurrent
+                    while (this.activeRequests >= this.maxConcurrent && this.isTesting) {
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+
+                    if (!this.isTesting) break;
+
+                    this.activeRequests++;
+                    this.stats.totalRequests++;
+
+                    const requestPromise = this.makeRequest(targetUrl, method).then(result => {
+                        this.activeRequests--;
+                        
+                        if (result.success) {
+                            this.stats.successfulRequests++;
+                            this.log(`✅ Request ${this.stats.totalRequests}: SUCCESS (Status: ${result.status})`);
+                        } else {
+                            this.stats.failedRequests++;
+                            this.log(`❌ Request ${this.stats.totalRequests}: FAILED (${result.error})`);
+                        }
+                        
+                        this.updateStats();
+                    });
+
+                    requestPromises.push(requestPromise);
+
+                    // Delay kecil untuk menghindari block
+                    if (i % 5 === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+                }
+
+                // Tunggu semua request selesai
+                await Promise.allSettled(requestPromises);
+
+                if (this.isTesting) {
+                    this.stats.endTime = new Date();
+                    const totalTime = (this.stats.endTime - this.stats.startTime) / 1000;
+                    this.log(`🎯 Simulation test selesai!`);
+                    this.log(`⏱️ Total waktu: ${totalTime.toFixed(2)} detik`);
+                    this.log(`📈 Rata-rata: ${(this.stats.totalRequests / totalTime).toFixed(2)} requests/detik`);
+                }
+
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                this.isTesting = false;
+            }
+
+            stopTest() {
+                this.isTesting = false;
+                this.log('🛑 Test dihentikan oleh user');
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            }
+        }
+
+        const simulator = new DDoSSimulator();
+
+        function startTest() {
+            simulator.startTest();
+        }
+
+        function stopTest() {
+            simulator.stopTest();
+        }
+
+        function setTarget(url) {
+            document.getElementById('targetUrl').value = url;
+        }
+
+        // Update stats periodically
+        setInterval(() => {
+            if (simulator.isTesting) {
+                simulator.updateStats();
+            }
+        }, 500);
+    </script>
+</body>
+</html>
